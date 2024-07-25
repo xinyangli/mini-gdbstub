@@ -52,6 +52,7 @@ static void *socket_reader(gdbstub_t *gdbstub)
 bool gdbstub_init(gdbstub_t *gdbstub,
                   struct target_ops *ops,
                   arch_info_t arch,
+                  const char *arch_xml,
                   const char *s)
 {
     if (s == NULL || ops == NULL)
@@ -60,6 +61,7 @@ bool gdbstub_init(gdbstub_t *gdbstub,
     memset(gdbstub, 0, sizeof(gdbstub_t));
     gdbstub->ops = ops;
     gdbstub->arch = arch;
+    gdbstub->arch_xml = arch_xml;
     gdbstub->priv = calloc(1, sizeof(struct gdbstub_private));
     if (gdbstub->priv == NULL) {
         return false;
@@ -271,24 +273,30 @@ void process_xfer(gdbstub_t *gdbstub, char *s)
 #ifdef DEBUG
     printf("xfer = %s %s\n", name, args);
 #endif
-    if (!strcmp(name, "features") && gdbstub->arch.target_desc != NULL) {
-        /* FIXME: We should check the args */
-        char buf[MAX_SEND_PACKET_SIZE];
-        sprintf(buf, TARGET_DESC, gdbstub->arch.target_desc);
-        conn_send_pktstr(&gdbstub->priv->conn, buf);
+    if (!strcmp(name, "features")) {
+        if (gdbstub->arch_xml != NULL) {
+            assert(strlen(gdbstub->arch_xml) < MAX_SEND_PACKET_SIZE);
+            conn_send_pktstr(&gdbstub->priv->conn, gdbstub->arch_xml);
+        } else if (gdbstub->arch.target_desc != NULL) {
+            /* FIXME: We should check the args */
+            char buf[MAX_SEND_PACKET_SIZE];
+            sprintf(buf, TARGET_DESC, gdbstub->arch.target_desc);
+            conn_send_pktstr(&gdbstub->priv->conn, buf);
+        }
     } else {
         conn_send_pktstr(&gdbstub->priv->conn, "");
     }
 }
 
-static void process_remote_cmd(gdbstub_t *gdbstub, const char *s) {
+static void process_remote_cmd(gdbstub_t *gdbstub, const char *s)
+{
     const char *args = strchr(s, ',');
     char *ret = gdbstub->ops->monitor(gdbstub->priv->args, args + 1);
     if (ret == NULL) {
-      conn_send_pktstr(&gdbstub->priv->conn, "OK");
+        conn_send_pktstr(&gdbstub->priv->conn, "OK");
     } else {
-      conn_send_pktstr(&gdbstub->priv->conn, ret);
-      free(ret);
+        conn_send_pktstr(&gdbstub->priv->conn, ret);
+        free(ret);
     }
 }
 
@@ -590,7 +598,8 @@ bool gdbstub_run(gdbstub_t *gdbstub, void *args)
 #ifdef DEBUG
         printf("REASON: %d, DATA: %lu\n", act.reason, act.data);
 #endif
-        if(!gdbstub_act_resume(gdbstub, &act)) return true;
+        if (!gdbstub_act_resume(gdbstub, &act))
+            return true;
     }
 
     return false;

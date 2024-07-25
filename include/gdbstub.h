@@ -52,12 +52,14 @@ typedef struct {
 typedef struct {
     struct target_ops *ops;
     arch_info_t arch;
+    const char *arch_xml;
     gdbstub_private_t *priv;
 } gdbstub_t;
 
 bool gdbstub_init(gdbstub_t *gdbstub,
                   struct target_ops *ops,
                   arch_info_t arch,
+                  const char* arch_xml,
                   const char *s);
 bool gdbstub_run(gdbstub_t *gdbstub, void *args);
 void gdbstub_close(gdbstub_t *gdbstub);
